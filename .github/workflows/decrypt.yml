@@ -16,16 +16,28 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install Dependencies
+    - name: Install PyCryptodome
       run: |
         pip install pycryptodome
 
-    - name: Run Decryption Script
+    - name: Inject Hook and Run Decryption
       run: |
-        python main.py
+        # Tạo một file sitecustomize.py để tự động hack hàm builtins.exec trước khi main.py chạy
+        echo 'import builtins, sys' > sitecustomize.py
+        echo 'old_exec = builtins.exec' >> sitecustomize.py
+        echo 'def hooked_exec(code, *args, **kwargs):' >> sitecustomize.py
+        echo '    with open("decrypted_payload.py", "wb") as f:' >> sitecustomize.py
+        echo '        if isinstance(code, str): f.write(code.encode("utf-8"))' >> sitecustomize.py
+        echo '        else: f.write(code)' >> sitecustomize.py
+        echo '    print("[*] Hooked success! Decrypted code saved.")' >> sitecustomize.py
+        echo '    sys.exit(0)' >> sitecustomize.py
+        echo 'builtins.exec = hooked_exec' >> sitecustomize.py
+        
+        # Chạy main.py với file tùy biến môi trường vừa tạo
+        PYTHONPATH=. python main.py
 
     - name: Upload Decrypted Artifact
       uses: actions/upload-artifact@v4
       with:
         name: decrypted-source-code
-        path: decrypted_layer.py
+        path: decrypted_payload.py

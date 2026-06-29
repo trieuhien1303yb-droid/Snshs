@@ -1,7 +1,7 @@
 name: Decrypt and Unpack Python Payload
 
 on:
-  workflow_dispatch: # Cho phép bạn bấm nút chạy thủ công trên giao diện Web
+  workflow_dispatch:
 
 jobs:
   unpack:
@@ -16,18 +16,18 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install PyCryptodome
+    - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pycryptodome
+        # Cài đặt thư viện mã hóa và thư viện socketio mà payload yêu cầu
+        pip install pycryptodome python-socketio
 
     - name: Run Decryption Script
       run: |
-        # Chạy file main.py đã sửa đổi để nó tự giải mã và xuất ra file decoded_payload.py
         python main.py
         
     - name: Upload Decrypted Artifact
       uses: actions/upload-artifact@v4
       with:
         name: decrypted-source-code
-        path: decoded_payload.py
+        path: decoded_payloa.py

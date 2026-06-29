@@ -1,43 +1,52 @@
-name: Decrypt and Unpack Python Payload
-
-on:
-  workflow_dispatch:
-
-jobs:
-  unpack:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-
-    - name: Install PyCryptodome
+- name: Inject Hook and Run Decryption
       run: |
-        pip install pycryptodome
+        # Tạo file sitecustomize.py nâng cấp để xử lý cả chuỗi, bytes và code object
+        cat << 'EOF' > sitecustomize.py
+        import builtins
+        import sys
+        import marshal
+        import dis
 
-    - name: Inject Hook and Run Decryption
-      run: |
-        # Tạo một file sitecustomize.py để tự động hack hàm builtins.exec trước khi main.py chạy
-        echo 'import builtins, sys' > sitecustomize.py
-        echo 'old_exec = builtins.exec' >> sitecustomize.py
-        echo 'def hooked_exec(code, *args, **kwargs):' >> sitecustomize.py
-        echo '    with open("decrypted_payload.py", "wb") as f:' >> sitecustomize.py
-        echo '        if isinstance(code, str): f.write(code.encode("utf-8"))' >> sitecustomize.py
-        echo '        else: f.write(code)' >> sitecustomize.py
-        echo '    print("[*] Hooked success! Decrypted code saved.")' >> sitecustomize.py
-        echo '    sys.exit(0)' >> sitecustomize.py
-        echo 'builtins.exec = hooked_exec' >> sitecustomize.py
+        def hooked_exec(code, *args, **kwargs):
+            print("[*] Đã đánh chặn thành công lệnh exec!")
+            
+            # Trường hợp 1: Nếu là chuỗi ký tự (String)
+            if isinstance(code, str):
+                with open("decrypted_payload.py", "wb") as f:
+                    f.write(code.encode("utf-8"))
+                print("[+] Đã lưu mã nguồn dạng văn bản vào decrypted_payload.py")
+                
+            # Trường hợp 2: Nếu là dữ liệu thô (Bytes)
+            elif isinstance(code, bytes):
+                with open("decrypted_payload.py", "wb") as f:
+                    f.write(code)
+                print("[+] Đã lưu mã nguồn dạng bytes vào decrypted_payload.py")
+                
+            # Trường hợp 3: Nếu là một mã nguồn đã biên dịch (Code Object)
+            else:
+                # Cách 1: Lưu dưới dạng bytecode nhị phân mã máy (.pyc)
+                with open("decrypted_payload.pyc", "wb") as f:
+                    f.write(marshal.dumps(code))
+                print("[+] Đã lưu cấu trúc Bytecode nhị phân vào decrypted_payload.pyc")
+                
+                # Cách 2: Dịch ngược mã máy đó thành các tập lệnh (Assembly-like) dễ đọc hơn
+                with open("decrypted_assembly.txt", "w", encoding="utf-8") as f:
+                    dis.dis(code, file=f)
+                print("[+] Đã dịch ngược cấu trúc lệnh vào decrypted_assembly.txt")
+                
+            sys.exit(0)
+
+        builtins.exec = hooked_exec
+        EOF
         
-        # Chạy main.py với file tùy biến môi trường vừa tạo
+        # Chạy file main.py với môi trường đã cấu hình hack hàm exec
         PYTHONPATH=. python main.py
 
     - name: Upload Decrypted Artifact
       uses: actions/upload-artifact@v4
       with:
         name: decrypted-source-code
-        path: decrypted_payload.py
+        path: |
+          decrypted_payload.py
+          decrypted_payload.pyc
+          decrypted_assembly.txt
